@@ -16,8 +16,9 @@
    explain that they are offline.
    ========================================================================== */
 
-export const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
-export const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+export const SUPABASE_URL = "https://qovhipzrljzfbndclrcw.supabase.co";
+export const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvdmhpcHpybGp6ZmJuZGNscmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2ODI0MTEsImV4cCI6MjEwNTI1ODQxMX0.Kg_7fOydTYuNFue-whmdhu_ANJLUg57_XD4dQdV5rPM";
 
 export const isConfigured =
   SUPABASE_URL.startsWith("https://") && SUPABASE_ANON_KEY.length > 40;
