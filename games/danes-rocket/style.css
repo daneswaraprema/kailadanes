@@ -415,3 +415,76 @@ kbd{
   .game-title__bottom{ font-size:2.8rem; }
   .parts-rack{ grid-template-columns:repeat(2,90px); }
 }
+
+/* ==========================================================================
+   ARCADE INTEGRATION
+   Chrome that belongs to the platform rather than the game: the floating bar
+   that sits over every screen, and the score panel in the result modal.
+   ========================================================================== */
+.arcade-bar{
+  position:fixed; top:0; left:0; right:0; z-index:30;
+  display:flex; align-items:center; gap:14px;
+  padding:10px 18px;
+  background:linear-gradient(180deg, rgba(5,7,15,.9), rgba(5,7,15,0));
+  pointer-events:none;
+}
+.arcade-bar > *{ pointer-events:auto; }
+
+.arcade-bar__back, .arcade-bar__link{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:7px 14px; border-radius:999px;
+  background:rgba(12,20,38,.75); border:1px solid var(--metal-edge-dk);
+  color:var(--ink); font-family:var(--font-body); font-weight:700; font-size:.95rem;
+  text-decoration:none; backdrop-filter:blur(8px);
+  transition:border-color .18s, color .18s, background .18s;
+}
+.arcade-bar__back:hover, .arcade-bar__link:hover{
+  border-color:var(--neon); color:var(--neon); background:rgba(12,20,38,.95);
+}
+.arcade-bar__account{ margin-left:auto; display:flex; align-items:center; gap:10px; }
+
+/* The start screen puts its title top-right, exactly where the bar sits, and
+   the mission screens put their back button there. Push both clear of it. */
+.title-block{ top:74px; }
+.subheader{ padding-top:52px; }
+
+@media (max-width:640px){
+  .arcade-bar{ padding:8px 12px; gap:8px; }
+  .arcade-bar__link{ display:none; }
+  .arcade-bar__account .account-chip__name{ display:none; }
+}
+
+/* ---------- Result modal score panel ---------- */
+.result-score{
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  margin:18px auto 6px; padding:16px 22px;
+  background:rgba(73,242,172,.08);
+  border:1px solid rgba(73,242,172,.28); border-radius:14px;
+}
+.modal--result.is-fail .result-score{ display:none; }
+.result-score__num{
+  font-family:var(--font-display); font-weight:900; font-size:2.1rem;
+  color:var(--neon); line-height:1;
+}
+.result-score__label{
+  font-size:.85rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-light);
+}
+.result-score__total{ font-size:.95rem; color:var(--ink-dim); margin-top:4px; }
+
+.result-sync{
+  margin-top:12px; font-size:.95rem; color:var(--ink-dim); min-height:1.2em;
+}
+.result-sync b{ color:var(--neon); }
+.result-sync__pending{ opacity:.7; }
+.result-sync .btn--link{ color:var(--neon); font-size:.95rem; }
+
+/* ---------- Best score on the mission cards ---------- */
+.mission-card__best{
+  font-family:var(--font-display); font-size:.78rem; font-weight:700;
+  letter-spacing:.08em; color:var(--gold-light); opacity:.9;
+}
+.mission-card__best:empty{ display:none; }
+
+/* platform.css sets a 17px base for the site pages; the game's layout was
+   built against the browser default, so restore it here. */
+body{ font-size:16px; }

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Danes Rocket — Danes Arcade</title>
+<meta name="description" content="Build the rocket, reach orbit and land on Mars. A free three-mission flight sim, playable in your browser.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- platform.css first so the game stylesheet wins every conflict; it is here
+     for the shared buttons, sign-in dialog and toasts. -->
+<link rel="stylesheet" href="../../assets/platform.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<!-- data-page="none" keeps the shell from injecting the full site header: the
+     game screens are fixed overlays, so it uses the compact bar below. -->
+<body data-page="none">
+
+<div id="starfield"></div>
+
+<!-- ============ ARCADE BAR (overlays every screen) ============ -->
+<div class="arcade-bar">
+  <a class="arcade-bar__back" href="../../index.html">
+    <span aria-hidden="true">&#8592;</span> Arcade
+  </a>
+  <a class="arcade-bar__link" href="../../leaderboards.html?game=danes-rocket">Leaderboard</a>
+  <div class="arcade-bar__account" id="site-account"></div>
+</div>
+
+<!-- ============ START SCREEN ============ -->
+<section id="screen-start" class="screen active">
+  <div class="space-scene">
+    <div class="planet planet--moon-tl"></div>
+    <div class="planet planet--tiny-tl"></div>
+    <div class="planet planet--blue-bl"></div>
+    <div class="nebula"></div>
+    <div class="planet planet--ringed-moon"></div>
+    <div class="planet planet--earth">
+      <div class="planet__impact"></div>
+    </div>
+    <div class="climb-rocket" aria-hidden="true">
+      <svg viewBox="0 0 60 140" class="climb-rocket__svg">
+        <ellipse cx="30" cy="128" rx="14" ry="26" class="flame flame--outer"/>
+        <ellipse cx="30" cy="122" rx="8" ry="16" class="flame flame--inner"/>
+        <path d="M30 4 C42 22 46 46 46 70 L46 96 C46 100 42 102 42 102 L18 102 C18 102 14 100 14 96 L14 70 C14 46 18 22 30 4 Z" class="rocket-body"/>
+        <path d="M30 4 C24 14 20 26 18 40 L42 40 C40 26 36 14 30 4 Z" class="rocket-nose"/>
+        <circle cx="30" cy="52" r="6" class="rocket-window"/>
+        <path d="M14 78 L2 100 L14 92 Z" class="rocket-fin rocket-fin--l"/>
+        <path d="M46 78 L58 100 L46 92 Z" class="rocket-fin rocket-fin--r"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="title-block">
+    <h1 class="game-title">
+      <span class="game-title__top">Danes</span>
+      <span class="game-title__bottom">Rocket</span>
+    </h1>
+    <svg viewBox="0 0 220 110" class="title-rocket" aria-hidden="true">
+      <ellipse cx="42" cy="60" rx="26" ry="12" class="flame flame--outer" transform="rotate(-28 42 60)"/>
+      <ellipse cx="48" cy="58" rx="15" ry="7" class="flame flame--inner" transform="rotate(-28 48 58)"/>
+      <g transform="rotate(-28 110 55)">
+        <path d="M110 10 C150 22 178 34 200 40 C178 46 150 50 110 52 C90 52 74 50 62 46 L62 34 C74 30 90 12 110 10 Z" class="rocket-body rocket-body--side"/>
+        <path d="M188 36 L212 40 L188 44 Z" class="rocket-nose rocket-nose--side"/>
+        <circle cx="150" cy="41" r="5" class="rocket-window"/>
+        <path d="M78 32 L62 18 L84 30 Z" class="rocket-fin rocket-fin--top"/>
+        <path d="M78 52 L62 66 L84 54 Z" class="rocket-fin rocket-fin--bottom"/>
+      </g>
+    </svg>
+  </div>
+
+  <nav class="menu-panel" aria-label="Main menu">
+    <button class="menu-btn" id="btn-start" type="button">Start</button>
+    <button class="menu-btn" id="btn-settings" type="button">Setting</button>
+    <a class="menu-btn" href="../../leaderboards.html?game=danes-rocket">Leaderboard</a>
+    <button class="menu-btn" id="btn-quit" type="button">Quit</button>
+  </nav>
+</section>
+
+<!-- ============ MISSION SELECT ============ -->
+<section id="screen-missions" class="screen">
+  <div class="starfield-tint"></div>
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-start" aria-label="Back to menu">&#8592;</button>
+    <h2>Select Mission</h2>
+    <span class="subheader__stat">Campaign: <b id="campaign-total">0</b></span>
+  </header>
+
+  <div class="mission-cards">
+    <button class="mission-card" id="card-m1" data-mission="1">
+      <span class="mission-card__num">01</span>
+      <span class="mission-card__name">Assembly Bay</span>
+      <span class="mission-card__desc">Build the rocket from spare parts at the Earth launch center.</span>
+      <span class="mission-card__diff mission-card__diff--easy">Easy</span>
+      <span class="mission-card__best"></span>
+      <span class="mission-card__lock" aria-hidden="true">&#128274;</span>
+    </button>
+
+    <button class="mission-card" id="card-m2" data-mission="2">
+      <span class="mission-card__num">02</span>
+      <span class="mission-card__name">Orbit Insertion</span>
+      <span class="mission-card__desc">Launch and hold the exact speed needed to settle into orbit.</span>
+      <span class="mission-card__diff mission-card__diff--medium">Medium</span>
+      <span class="mission-card__best"></span>
+      <span class="mission-card__lock" aria-hidden="true">&#128274;</span>
+    </button>
+
+    <button class="mission-card" id="card-m3" data-mission="3">
+      <span class="mission-card__num">03</span>
+      <span class="mission-card__name">Mars Descent</span>
+      <span class="mission-card__desc">Brake the fall and set the rocket down softly on Mars.</span>
+      <span class="mission-card__diff mission-card__diff--hard">Hard</span>
+      <span class="mission-card__best"></span>
+      <span class="mission-card__lock" aria-hidden="true">&#128274;</span>
+    </button>
+  </div>
+</section>
+
+<!-- ============ MISSION 1: ASSEMBLY ============ -->
+<section id="screen-mission1" class="screen">
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-missions" aria-label="Back to missions">&#8592;</button>
+    <h2>01 &mdash; Assembly Bay</h2>
+    <span class="subheader__stat" id="m1-mistakes">Mistakes: 0</span>
+  </header>
+
+  <p class="mission-brief">Drag each part onto the gantry in the right order, nose to nozzle. Not every part on the rack belongs on this rocket.</p>
+
+  <div class="assembly-wrap">
+    <div class="gantry" id="gantry">
+      <!-- 5 slots injected by JS -->
+    </div>
+    <div class="parts-rack" id="parts-rack">
+      <!-- parts injected by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- ============ MISSION 2: ORBIT INSERTION ============ -->
+<section id="screen-mission2" class="screen">
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-missions" aria-label="Back to missions">&#8592;</button>
+    <h2>02 &mdash; Orbit Insertion</h2>
+    <span class="subheader__stat" id="m2-timer">T+00:00</span>
+  </header>
+
+  <div class="flight-wrap">
+    <canvas id="canvas-m2" width="900" height="560"></canvas>
+
+    <div class="hud">
+      <div class="hud__gauge">
+        <span class="hud__label">Altitude</span>
+        <span class="hud__value" id="m2-alt">0 km</span>
+        <div class="hud__bar"><div class="hud__bar-fill" id="m2-alt-fill"></div><div class="hud__target-band" id="m2-alt-target"></div></div>
+      </div>
+      <div class="hud__gauge">
+        <span class="hud__label">Velocity</span>
+        <span class="hud__value" id="m2-vel">0.0 km/s</span>
+        <div class="hud__bar hud__bar--velocity">
+          <div class="hud__band hud__band--safe" id="m2-vband-safe"></div>
+          <div class="hud__band hud__band--danger" id="m2-vband-danger"></div>
+          <div class="hud__needle" id="m2-vneedle"></div>
+        </div>
+      </div>
+      <div class="hud__gauge">
+        <span class="hud__label">Fuel</span>
+        <span class="hud__value" id="m2-fuel">100%</span>
+        <div class="hud__bar"><div class="hud__bar-fill hud__bar-fill--fuel" id="m2-fuel-fill"></div></div>
+      </div>
+      <div class="hud__throttle">
+        <span class="hud__label">Throttle</span>
+        <input type="range" id="m2-throttle" min="0" max="100" value="0" step="1" orient="vertical">
+        <span class="hud__value" id="m2-throttle-val">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="flight-hint">Hold <kbd>&#8593;</kbd> to throttle up, <kbd>&#8595;</kbd> to throttle down. Keep velocity inside the green band as you climb &mdash; too fast and you escape, too slow and you fall.</p>
+</section>
+
+<!-- ============ MISSION 3: MARS LANDING ============ -->
+<section id="screen-mission3" class="screen">
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-missions" aria-label="Back to missions">&#8592;</button>
+    <h2>03 &mdash; Mars Descent</h2>
+    <span class="subheader__stat" id="m3-timer">T+00:00</span>
+  </header>
+
+  <div class="flight-wrap flight-wrap--mars">
+    <canvas id="canvas-m3" width="900" height="560"></canvas>
+
+    <div class="hud">
+      <div class="hud__gauge">
+        <span class="hud__label">Altitude</span>
+        <span class="hud__value" id="m3-alt">0 m</span>
+        <div class="hud__bar"><div class="hud__bar-fill" id="m3-alt-fill"></div></div>
+      </div>
+      <div class="hud__gauge">
+        <span class="hud__label">Descent Speed</span>
+        <span class="hud__value" id="m3-vel">0.0 m/s</span>
+        <div class="hud__bar hud__bar--velocity">
+          <div class="hud__band hud__band--safe" id="m3-vband-safe"></div>
+          <div class="hud__needle" id="m3-vneedle"></div>
+        </div>
+      </div>
+      <div class="hud__gauge">
+        <span class="hud__label">Fuel</span>
+        <span class="hud__value" id="m3-fuel">100%</span>
+        <div class="hud__bar"><div class="hud__bar-fill hud__bar-fill--fuel" id="m3-fuel-fill"></div></div>
+      </div>
+      <div class="hud__throttle">
+        <span class="hud__label">Thrust</span>
+        <input type="range" id="m3-throttle" min="0" max="100" value="0" step="1" orient="vertical">
+        <span class="hud__value" id="m3-throttle-val">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="flight-hint">Hold <kbd>&#8593;</kbd> to fire the retro-thrusters. Brake enough to land gently &mdash; but burn too much fuel too early and you'll have nothing left for touchdown.</p>
+</section>
+
+<!-- ============ MODALS ============ -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <h3>Setting</h3>
+    <div class="modal__row">
+      <span>Sound</span>
+      <button class="toggle" id="toggle-sound" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <span>Progress</span>
+      <button class="text-btn" id="btn-reset-progress" type="button">Reset missions</button>
+    </div>
+    <p class="modal__note">Danes Rocket &mdash; a three-mission flight sim. Built with HTML, CSS &amp; JavaScript.</p>
+    <button class="menu-btn menu-btn--small" data-close-modal="modal-settings" type="button">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-quit">
+  <div class="modal">
+    <h3>Leave the launch pad?</h3>
+    <p>Your progress is saved. Head back to the arcade and pick another game, or stay and fly again.</p>
+    <div class="modal__actions">
+      <a class="menu-btn menu-btn--small" href="../../index.html">Back to Arcade</a>
+      <button class="menu-btn menu-btn--small menu-btn--ghost" data-close-modal="modal-quit" type="button">Stay</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-result">
+  <div class="modal modal--result">
+    <div class="modal__badge" id="result-badge">&#9733;</div>
+    <h3 id="result-title">Mission Complete</h3>
+    <p id="result-body">You did it.</p>
+    <div class="result-score" id="result-score" hidden></div>
+    <p class="result-sync" id="result-sync"></p>
+    <div class="modal__actions" id="result-actions"></div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+<script type="module" src="arcade.js"></script>
+</body>
+</html>

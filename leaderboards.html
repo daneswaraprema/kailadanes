@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboards — Danes Arcade</title>
+<meta name="description" content="Top scores across every game in Danes Arcade.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/platform.css">
+</head>
+<body data-page="leaderboards">
+
+<div class="stars" aria-hidden="true"></div>
+
+<main class="page">
+  <div id="offline-notice"></div>
+
+  <div class="page__head">
+    <p class="eyebrow">Hall of fame</p>
+    <h1 class="page__title">Leaderboards</h1>
+    <p class="page__sub">One entry per player, showing their personal best. Beat your own score and the board updates.</p>
+  </div>
+
+  <div class="tabs" id="game-tabs" role="tablist"></div>
+
+  <section class="panel">
+    <div class="panel__head">
+      <h2 class="panel__title" id="board-title">Top players</h2>
+      <span id="board-note" class="game-card__best"></span>
+    </div>
+    <div id="board-host">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <span>Danes Arcade — free browser games.</span>
+  <span><a href="index.html">All games</a> · <a href="account.html">My account</a></span>
+</footer>
+
+<script type="module">
+import { GAMES } from "./assets/games.js";
+import * as Arcade from "./assets/api.js";
+import { escapeHtml, timeAgo } from "./assets/shell.js";
+
+const tabsHost = document.getElementById("game-tabs");
+const boardHost = document.getElementById("board-host");
+const boardTitle = document.getElementById("board-title");
+const boardNote = document.getElementById("board-note");
+
+/* Deep-link support: leaderboards.html?game=danes-rocket */
+const params = new URLSearchParams(location.search);
+let activeId = GAMES.some((g) => g.id === params.get("game"))
+  ? params.get("game")
+  : GAMES[0]?.id;
+
+tabsHost.innerHTML = GAMES.map(
+  (g) =>
+    `<button class="tab" type="button" role="tab" data-game="${escapeHtml(g.id)}">${escapeHtml(
+      g.title
+    )}</button>`
+).join("");
+
+tabsHost.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-game]");
+  if (!btn) return;
+  activeId = btn.dataset.game;
+  history.replaceState(null, "", `?game=${encodeURIComponent(activeId)}`);
+  render();
+});
+
+/* Danes Rocket stores its per-mission breakdown in details.missions — show it
+   as a compact summary. Other games can put whatever they like in details;
+   anything we do not recognise is simply not rendered. */
+function detailText(row) {
+  const m = row.details?.missions;
+  if (!m) return "";
+  const parts = [];
+  if (m.m1) parts.push(`Assembly ${m.m1}`);
+  if (m.m2) parts.push(`Orbit ${m.m2}`);
+  if (m.m3) parts.push(`Descent ${m.m3}`);
+  return parts.join(" · ");
+}
+
+function rowHtml(row, i, meId) {
+  const rank = i + 1;
+  const isMe = meId && row.user_id === meId;
+  return `
+    <tr class="${isMe ? "is-me" : ""}">
+      <td class="board__rank board__rank--${rank <= 3 ? rank : "n"}">${
+        rank === 1 ? "&#129351;" : rank === 2 ? "&#129352;" : rank === 3 ? "&#129353;" : "#" + rank
+      }</td>
+      <td>
+        <span class="board__player">
+          <span class="account-chip__avatar" aria-hidden="true">${escapeHtml(
+            (row.username || "?").charAt(0).toUpperCase()
+          )}</span>
+          ${escapeHtml(row.username || "Player")}
+          ${isMe ? '<span class="you-tag">You</span>' : ""}
+        </span>
+      </td>
+      <td class="board__detail">${escapeHtml(detailText(row))}</td>
+      <td class="board__score">${Number(row.score).toLocaleString()}</td>
+      <td class="board__when">${row.created_at ? timeAgo(row.created_at) : ""}</td>
+    </tr>`;
+}
+
+async function render() {
+  const game = GAMES.find((g) => g.id === activeId);
+  tabsHost.querySelectorAll("[data-game]").forEach((t) =>
+    t.classList.toggle("is-active", t.dataset.game === activeId)
+  );
+  if (!game) {
+    boardHost.innerHTML = `<div class="empty">No games registered yet.</div>`;
+    return;
+  }
+
+  boardTitle.textContent = `${game.title} — ${game.scoreLabel}`;
+  boardHost.innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
+
+  const { rows, source } = await Arcade.topScores(game.id, 50);
+  const me = Arcade.user();
+
+  if (source === "error") {
+    boardHost.innerHTML = `<div class="empty"><span class="empty__icon">&#9888;</span>
+      <p>Could not load the leaderboard right now. Try again in a moment.</p></div>`;
+    return;
+  }
+
+  if (!rows.length) {
+    boardHost.innerHTML = `<div class="empty">
+      <span class="empty__icon">&#127942;</span>
+      <p>No scores yet — the board is wide open.</p>
+      <a class="btn btn--primary btn--sm" href="${escapeHtml(game.path)}">Be the first</a>
+    </div>`;
+    boardNote.textContent = "";
+    return;
+  }
+
+  boardHost.innerHTML = `
+    <table class="board">
+      <thead><tr>
+        <th>Rank</th><th>Player</th><th>Breakdown</th>
+        <th style="text-align:right">Score</th><th style="text-align:right">Set</th>
+      </tr></thead>
+      <tbody>${rows.map((r, i) => rowHtml(r, i, me?.id)).join("")}</tbody>
+    </table>`;
+
+  boardNote.textContent =
+    source === "local"
+      ? "Local scores only — sign in to compete globally."
+      : `${rows.length} player${rows.length === 1 ? "" : "s"} ranked`;
+}
+
+if (!Arcade.online()) {
+  document.getElementById("offline-notice").innerHTML = `
+    <div class="notice">
+      <span aria-hidden="true">&#9888;</span>
+      <span>${escapeHtml(Arcade.offlineReason())}</span>
+    </div>`;
+}
+
+Arcade.onAuthChange(render);
+</script>
+</body>
+</html>

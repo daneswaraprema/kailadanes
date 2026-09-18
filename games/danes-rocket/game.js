@@ -71,10 +71,11 @@
    * ------------------------------------------------------------------ */
   const Progress = (() => {
     const KEY = "dr_progress";
-    let data = { m1: false, m2: false, m3: false };
+    const blank = () => ({ m1: false, m2: false, m3: false, best: { m1: 0, m2: 0, m3: 0 } });
+    let data = blank();
     try {
       const saved = JSON.parse(Store.get(KEY));
-      if (saved) data = Object.assign(data, saved);
+      if (saved) data = Object.assign(blank(), saved, { best: Object.assign({ m1: 0, m2: 0, m3: 0 }, saved.best) });
     } catch (e) { /* ignore malformed storage */ }
 
     function save() { Store.set(KEY, JSON.stringify(data)); }
@@ -82,9 +83,41 @@
       isComplete: (n) => !!data["m" + n],
       isUnlocked: (n) => n === 1 || !!data["m" + (n - 1)],
       complete: (n) => { data["m" + n] = true; save(); },
-      reset: () => { data = { m1: false, m2: false, m3: false }; save(); },
+      // Missions keep their best score only, so the campaign total never drops
+      // because of one bad run.
+      recordScore: (n, score) => {
+        const key = "m" + n;
+        if (score > (data.best[key] || 0)) { data.best[key] = score; save(); return true; }
+        return false;
+      },
+      bestFor: (n) => data.best["m" + n] || 0,
+      bests: () => ({ ...data.best }),
+      campaignTotal: () => data.best.m1 + data.best.m2 + data.best.m3,
+      reset: () => { data = blank(); save(); },
     };
   })();
+
+  /* ------------------------------------------------------------------ *
+   *  Scoring
+   *  Each mission pays a base for finishing plus bonuses for doing it well.
+   *  A player's campaign score is the sum of their best run at each mission,
+   *  so the leaderboard rewards mastering all three rather than grinding one.
+   *  Theoretical maximum is 4,950 (1,200 + 1,850 + 1,900) and no real run gets
+   *  close, since every mission has to burn fuel. That sits comfortably under
+   *  the 6,000 ceiling the database accepts for this game (db/schema.sql).
+   * ------------------------------------------------------------------ */
+  const Score = {
+    // Clean assembly is worth the most; every wrong part costs.
+    mission1: (mistakes) => Math.max(200, 1200 - mistakes * 100),
+
+    // Reward fuel left in the tanks and a decisive climb.
+    mission2: (fuel, time, timeLimit) =>
+      Math.round(800 + fuel * 6 + Math.max(0, timeLimit - time) * 5),
+
+    // Reward fuel left and how gently the rocket actually touched down.
+    mission3: (fuel, landingSpeed, safeSpeed) =>
+      Math.round(800 + fuel * 6 + Math.max(0, (safeSpeed - landingSpeed) / safeSpeed) * 500),
+  };
 
   /* ------------------------------------------------------------------ *
    *  Screen navigation
@@ -114,7 +147,16 @@
       const complete = Progress.isComplete(n);
       card.classList.toggle("is-locked", !unlocked);
       card.classList.toggle("is-complete", complete);
+
+      const bestEl = card.querySelector(".mission-card__best");
+      if (bestEl) {
+        const best = Progress.bestFor(n);
+        bestEl.textContent = best ? "Best " + best.toLocaleString() : "";
+      }
     });
+
+    const totalEl = $("#campaign-total");
+    if (totalEl) totalEl.textContent = Progress.campaignTotal().toLocaleString();
   }
 
   $$(".mission-card").forEach((card) => {
@@ -129,12 +171,26 @@
   /* ------------------------------------------------------------------ *
    *  Generic result modal
    * ------------------------------------------------------------------ */
-  function showResult({ success, title, body, missionNum, nextUnlocksMission }) {
+  function showResult({ success, title, body, missionNum, nextUnlocksMission, score = 0 }) {
     const modal = $("#modal-result .modal--result");
     modal.classList.toggle("is-fail", !success);
     $("#result-badge").textContent = success ? "\u2605" : "\u2716";
     $("#result-title").textContent = title;
     $("#result-body").textContent = body;
+
+    // Score panel \u2014 only meaningful on a successful run.
+    const scoreBox = $("#result-score");
+    if (success && score > 0) {
+      const isBest = Progress.recordScore(missionNum, score);
+      scoreBox.hidden = false;
+      scoreBox.innerHTML =
+        `<span class="result-score__num">+${score.toLocaleString()}</span>` +
+        `<span class="result-score__label">${isBest ? "New mission best!" : "Mission score"}</span>` +
+        `<span class="result-score__total">Campaign total: ${Progress.campaignTotal().toLocaleString()}</span>`;
+    } else {
+      scoreBox.hidden = true;
+      scoreBox.innerHTML = "";
+    }
 
     const actions = $("#result-actions");
     actions.innerHTML = "";
@@ -162,6 +218,20 @@
     else Audio_.fail();
 
     openModal("modal-result");
+
+    // Hand the run to the arcade layer (arcade.js), which decides whether it
+    // goes to the leaderboard or stays in this browser. The game itself stays
+    // completely unaware of accounts and networking.
+    if (success && score > 0) {
+      document.dispatchEvent(new CustomEvent("danes-rocket:run-complete", {
+        detail: {
+          mission: missionNum,
+          missionScore: score,
+          total: Progress.campaignTotal(),
+          bests: Progress.bests(),
+        },
+      }));
+    }
   }
 
   /* ==================================================================== *
@@ -304,6 +374,7 @@
             body: `Every part locked in place with ${m1Mistakes} mistake${m1Mistakes === 1 ? "" : "s"}. The gantry rolls back — Mission 02 is go.`,
             missionNum: 1,
             nextUnlocksMission: 2,
+            score: Score.mission1(m1Mistakes),
           });
         }, 350);
       }
@@ -428,7 +499,8 @@
     m2.ended = true;
     if (m2Raf) cancelAnimationFrame(m2Raf);
     m2LastT = null;
-    setTimeout(() => showResult({ success, title, body, missionNum: 2, nextUnlocksMission: nextMission }), 250);
+    const score = success ? Score.mission2(m2.fuel, m2.time, M2.timeLimit) : 0;
+    setTimeout(() => showResult({ success, title, body, missionNum: 2, nextUnlocksMission: nextMission, score }), 250);
   }
 
   function updateMission2Hud() {
@@ -605,7 +677,8 @@
     m3.ended = true;
     if (m3Raf) cancelAnimationFrame(m3Raf);
     m3LastT = null;
-    setTimeout(() => showResult({ success, title, body, missionNum: 3, nextUnlocksMission: null }), 250);
+    const score = success ? Score.mission3(m3.fuel, m3.velocity, M3.safeLandingSpeed) : 0;
+    setTimeout(() => showResult({ success, title, body, missionNum: 3, nextUnlocksMission: null, score }), 250);
   }
 
   function updateMission3Hud() {
@@ -666,7 +739,6 @@
   $("#btn-start").addEventListener("click", () => { Audio_.click(); showScreen("screen-missions"); });
   $("#btn-settings").addEventListener("click", () => { Audio_.click(); openModal("modal-settings"); });
   $("#btn-quit").addEventListener("click", () => { Audio_.click(); openModal("modal-quit"); });
-  $("#btn-quit-confirm").addEventListener("click", () => { window.close(); setTimeout(() => { alert("You can close this browser tab whenever you're ready."); }, 300); });
 
   $$("[data-goto]").forEach((btn) => btn.addEventListener("click", () => { Audio_.click(); showScreen(btn.dataset.goto); }));
   $$("[data-close-modal]").forEach((btn) => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));

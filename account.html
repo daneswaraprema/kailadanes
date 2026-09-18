@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — Danes Arcade</title>
+<meta name="description" content="Your Danes Arcade profile, personal bests and ranks.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/platform.css">
+</head>
+<body data-page="account">
+
+<div class="stars" aria-hidden="true"></div>
+
+<main class="page">
+  <div id="offline-notice"></div>
+
+  <div class="page__head">
+    <p class="eyebrow">Player profile</p>
+    <h1 class="page__title" id="acct-title">My Account</h1>
+    <p class="page__sub" id="acct-sub">Your personal bests across the arcade.</p>
+  </div>
+
+  <div id="acct-body">
+    <div class="skeleton"></div><div class="skeleton"></div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <span>Danes Arcade — free browser games.</span>
+  <span><a href="index.html">All games</a> · <a href="leaderboards.html">Leaderboards</a></span>
+</footer>
+
+<script type="module">
+import { GAMES, gameById } from "./assets/games.js";
+import * as Arcade from "./assets/api.js";
+import { escapeHtml, timeAgo, openAuth } from "./assets/shell.js";
+
+const body = document.getElementById("acct-body");
+const title = document.getElementById("acct-title");
+const sub = document.getElementById("acct-sub");
+
+function signedOutView() {
+  title.textContent = "My Account";
+  sub.textContent = "Sign in to save your scores and see where you rank.";
+  body.innerHTML = `
+    <div class="panel">
+      <div class="empty">
+        <span class="empty__icon">&#128100;</span>
+        <p>You are playing as <b>${escapeHtml(Arcade.guestName())}</b>.
+           Guest scores live in this browser only — they disappear if you clear
+           site data or switch device.</p>
+        <button class="btn btn--primary" type="button" id="go-signup">Create a free account</button>
+        <button class="btn btn--link" type="button" id="go-signin">I already have one</button>
+      </div>
+    </div>`;
+  document.getElementById("go-signup").onclick = () => openAuth("signup");
+  document.getElementById("go-signin").onclick = () => openAuth("signin");
+
+  // Guests still have local bests worth showing.
+  renderScores(true);
+}
+
+async function renderScores(isGuest) {
+  const scores = await Arcade.myScores();
+  const byGame = new Map(scores.map((s) => [s.game_id, s]));
+
+  const rows = GAMES.map((g) => {
+    const s = byGame.get(g.id);
+    return `
+      <tr>
+        <td>
+          <span class="board__player">
+            <span class="account-chip__avatar account-chip__avatar--guest" aria-hidden="true">&#127918;</span>
+            ${escapeHtml(g.title)}
+          </span>
+        </td>
+        <td class="board__detail">${s ? escapeHtml(timeAgo(s.created_at)) : "Never played"}</td>
+        <td class="board__score">${s ? Number(s.score).toLocaleString() : "—"}</td>
+        <td class="board__when">
+          <a class="btn btn--ghost btn--sm" href="${escapeHtml(g.path)}">${s ? "Beat it" : "Play"}</a>
+        </td>
+      </tr>`;
+  }).join("");
+
+  const panel = `
+    <div class="panel">
+      <div class="panel__head">
+        <h2 class="panel__title">Personal bests</h2>
+        <a class="btn btn--ghost btn--sm" href="leaderboards.html">Global boards</a>
+      </div>
+      <table class="board">
+        <thead><tr>
+          <th>Game</th><th>Last set</th>
+          <th style="text-align:right">Best score</th><th style="text-align:right"></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${
+        isGuest
+          ? `<p class="auth__note" style="text-align:left;margin-top:16px">
+               These are local scores. Creating an account starts a fresh, shareable
+               record on the global leaderboard.</p>`
+          : ""
+      }
+    </div>`;
+
+  // Signed-out view already rendered its own panel above this one.
+  if (isGuest) body.insertAdjacentHTML("beforeend", panel);
+  else body.innerHTML = panel;
+}
+
+async function signedInView(player) {
+  title.textContent = player.username;
+  sub.textContent = player.email || "";
+  body.innerHTML = `<div class="skeleton"></div><div class="skeleton"></div>`;
+
+  await renderScores(false);
+
+  // Ranks need a second pass per game; fill them in once the table exists.
+  const ranks = await Promise.all(GAMES.map((g) => Arcade.myBest(g.id)));
+  const tally = ranks.filter(Boolean);
+  const bestRank = tally.length ? Math.min(...tally.map((r) => r.rank || Infinity)) : null;
+
+  body.insertAdjacentHTML(
+    "beforeend",
+    `<div class="panel">
+       <div class="panel__head"><h2 class="panel__title">Account</h2></div>
+       <table class="board"><tbody>
+         <tr><td>Player name</td><td class="board__score">${escapeHtml(player.username)}</td></tr>
+         <tr><td>Email</td><td class="board__score">${escapeHtml(player.email || "—")}</td></tr>
+         <tr><td>Games scored</td><td class="board__score">${tally.length} / ${GAMES.length}</td></tr>
+         <tr><td>Best rank</td><td class="board__score">${
+           bestRank && bestRank !== Infinity ? "#" + bestRank : "—"
+         }</td></tr>
+       </tbody></table>
+       <div style="margin-top:18px"><button class="btn btn--ghost btn--sm" id="btn-signout-2" type="button">Sign out</button></div>
+     </div>`
+  );
+  document.getElementById("btn-signout-2").onclick = () => Arcade.signOut();
+}
+
+if (!Arcade.online()) {
+  document.getElementById("offline-notice").innerHTML = `
+    <div class="notice">
+      <span aria-hidden="true">&#9888;</span>
+      <span>${escapeHtml(Arcade.offlineReason())}</span>
+    </div>`;
+}
+
+Arcade.onAuthChange((player) => {
+  if (player) signedInView(player);
+  else signedOutView();
+});
+</script>
+</body>
+</html>
