@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asteroid Run — Danes Arcade</title>
+<meta name="description" content="Fly the belt, break the rocks, stay alive. A free arcade shooter you can play in your browser — no downloads, no installs.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- platform.css first so the game stylesheet wins every conflict; it is here
+     for the shared buttons, sign-in dialog and toasts. -->
+<link rel="stylesheet" href="../../assets/platform.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<!-- data-page="none" keeps the shell from injecting the full site header: the
+     game screens are fixed overlays, so it uses the compact bar below. -->
+<body data-page="none">
+
+<div id="starfield"></div>
+
+<!-- ============ ARCADE BAR (overlays every screen) ============ -->
+<div class="arcade-bar">
+  <a class="arcade-bar__back" href="../../index.html">
+    <span aria-hidden="true">&#8592;</span> Arcade
+  </a>
+  <a class="arcade-bar__link" href="../../leaderboards.html?game=asteroid-run">Leaderboard</a>
+  <div class="arcade-bar__account" id="site-account"></div>
+</div>
+
+<!-- ============ START SCREEN ============ -->
+<section id="screen-start" class="screen active">
+  <div class="space-scene" aria-hidden="true">
+    <div class="belt-rock belt-rock--1"></div>
+    <div class="belt-rock belt-rock--2"></div>
+    <div class="belt-rock belt-rock--3"></div>
+    <div class="belt-rock belt-rock--4"></div>
+    <div class="belt-glow"></div>
+  </div>
+
+  <div class="title-block">
+    <h1 class="game-title">
+      <span class="game-title__top">Asteroid</span>
+      <span class="game-title__bottom">Run</span>
+    </h1>
+    <p class="game-tagline">Fly the belt. Break the rocks. Stay alive.</p>
+  </div>
+
+  <nav class="menu-panel" aria-label="Main menu">
+    <button class="menu-btn" id="btn-start" type="button">Start</button>
+    <button class="menu-btn" id="btn-howto" type="button">How to Play</button>
+    <button class="menu-btn" id="btn-settings" type="button">Setting</button>
+    <a class="menu-btn" href="../../leaderboards.html?game=asteroid-run">Leaderboard</a>
+    <button class="menu-btn" id="btn-quit" type="button">Quit</button>
+  </nav>
+
+  <p class="start-best">Your best run: <b id="start-best">0</b></p>
+</section>
+
+<!-- ============ GAME SCREEN ============ -->
+<section id="screen-game" class="screen">
+  <div class="play-wrap">
+    <canvas id="canvas" width="900" height="620" aria-label="Asteroid Run play field"></canvas>
+
+    <!-- HUD sits over the canvas so the play field keeps the whole frame -->
+    <div class="hud" aria-live="off">
+      <div class="hud__cell">
+        <span class="hud__label">Score</span>
+        <span class="hud__value" id="hud-score">0</span>
+      </div>
+      <div class="hud__cell">
+        <span class="hud__label">Wave</span>
+        <span class="hud__value" id="hud-wave">1</span>
+      </div>
+      <div class="hud__cell hud__cell--mult">
+        <span class="hud__label">Combo</span>
+        <span class="hud__value" id="hud-mult">&times;1</span>
+      </div>
+      <div class="hud__cell hud__cell--lives">
+        <span class="hud__label">Hulls</span>
+        <span class="hud__value" id="hud-lives" aria-label="Lives remaining"></span>
+      </div>
+      <div class="hud__cell hud__cell--best">
+        <span class="hud__label">Best</span>
+        <span class="hud__value" id="hud-best">0</span>
+      </div>
+      <button class="hud__pause" id="btn-pause" type="button" aria-label="Pause">&#10073;&#10073;</button>
+    </div>
+
+    <!-- Power-up timers only appear while something is running -->
+    <div class="boosts" id="boosts"></div>
+
+    <!-- Big centred callouts: wave numbers, pickups, warnings -->
+    <div class="flash" id="flash" aria-live="polite"></div>
+
+    <div class="pause-veil" id="pause-veil">
+      <div class="pause-card">
+        <h3>Paused</h3>
+        <div class="modal__actions">
+          <button class="menu-btn menu-btn--small" id="btn-resume" type="button">Resume</button>
+          <button class="menu-btn menu-btn--small menu-btn--ghost" data-goto="screen-start" type="button">Quit Run</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="play-hint">
+    <kbd>&#8592;</kbd><kbd>&#8594;</kbd><kbd>&#8593;</kbd><kbd>&#8595;</kbd> or <kbd>WASD</kbd> to fly &middot;
+    <kbd>Space</kbd> to fire &middot; <kbd>P</kbd> to pause &middot; or just drag on the field
+  </p>
+</section>
+
+<!-- ============ MODALS ============ -->
+<div class="modal-overlay" id="modal-howto">
+  <div class="modal modal--wide">
+    <h3>How to Play</h3>
+    <ul class="howto">
+      <li><b>Fly</b> with the arrow keys or WASD. On a touchscreen, drag anywhere on the field &mdash; the ship follows your finger and fires by itself.</li>
+      <li><b>Fire</b> with Space. Big rocks take three hits and break into smaller ones, and the small ones are worth the most.</li>
+      <li><b>Chain kills</b> to build your combo multiplier. Taking a hit resets it, so a careful run outscores a reckless one.</li>
+      <li><b>Grab power-ups</b> dropped by broken rocks: <span class="pu pu--shield">Shield</span> absorbs one impact, <span class="pu pu--rapid">Rapid</span> triples your fire rate, <span class="pu pu--bomb">Pulse</span> clears the screen.</li>
+      <li><b>Three hulls.</b> Waves get faster every twenty seconds and never stop coming &mdash; the run ends when the last hull goes.</li>
+    </ul>
+    <button class="menu-btn menu-btn--small" data-close-modal="modal-howto" type="button">Got it</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <h3>Setting</h3>
+    <div class="modal__row">
+      <span>Sound effects</span>
+      <button class="toggle" id="toggle-sound" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <span>Music</span>
+      <button class="toggle" id="toggle-music" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <label class="modal__slider-label" for="music-volume">Music volume</label>
+      <input class="modal__slider" type="range" id="music-volume" min="0" max="100" step="5" value="50">
+    </div>
+    <div class="modal__row">
+      <span>Best score</span>
+      <button class="text-btn" id="btn-reset-best" type="button">Reset</button>
+    </div>
+    <p class="modal__note">Asteroid Run &mdash; an endless arcade shooter. Built with HTML, CSS &amp; JavaScript.</p>
+    <button class="menu-btn menu-btn--small" data-close-modal="modal-settings" type="button">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-quit">
+  <div class="modal">
+    <h3>Leave the belt?</h3>
+    <p>Your best score is saved. Head back to the arcade and pick another game, or stay and fly again.</p>
+    <div class="modal__actions">
+      <a class="menu-btn menu-btn--small" href="../../index.html">Back to Arcade</a>
+      <button class="menu-btn menu-btn--small menu-btn--ghost" data-close-modal="modal-quit" type="button">Stay</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-result">
+  <div class="modal modal--result">
+    <div class="modal__badge" id="result-badge">&#9733;</div>
+    <h3 id="result-title">Run Over</h3>
+    <p id="result-body"></p>
+    <div class="result-score" id="result-score"></div>
+    <p class="result-sync" id="result-sync"></p>
+    <div class="modal__actions" id="result-actions"></div>
+  </div>
+</div>
+
+<!-- The audio engine is a classic script so game.js can reach it directly;
+     it must load first because game.js reads the stored sound settings. -->
+<script src="../../assets/audio.js"></script>
+<script src="game.js"></script>
+<script type="module" src="arcade.js"></script>
+</body>
+</html>

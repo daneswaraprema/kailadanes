@@ -377,7 +377,12 @@ kbd{
 }
 .modal h3{ color:var(--gold-light); font-size:1.3rem; }
 .modal p{ color:var(--ink-dim); font-size:.98rem; line-height:1.4; }
-.modal__row{ display:flex; justify-content:space-between; align-items:center; width:100%; }
+.modal__row{ display:flex; justify-content:space-between; align-items:center; width:100%; gap:16px; }
+.modal__slider-label{ white-space:nowrap; }
+.modal__slider{
+  flex:1; max-width:160px; height:6px; accent-color:var(--neon);
+  background:transparent; cursor:pointer;
+}
 .modal__note{ font-size:.82rem; }
 .modal__actions{ display:flex; gap:12px; width:100%; }
 .modal__actions .menu-btn{ flex:1; }

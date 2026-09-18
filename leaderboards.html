@@ -73,17 +73,38 @@ tabsHost.addEventListener("click", (e) => {
   render();
 });
 
-/* Danes Rocket stores its per-mission breakdown in details.missions — show it
-   as a compact summary. Other games can put whatever they like in details;
-   anything we do not recognise is simply not rendered. */
+/* Each game puts its own breakdown in the details column and this turns
+   whichever shape it recognises into one compact line. A game can store
+   anything it likes there; anything we do not recognise is simply not
+   rendered, so adding a game never breaks this table. */
 function detailText(row) {
-  const m = row.details?.missions;
-  if (!m) return "";
-  const parts = [];
-  if (m.m1) parts.push(`Assembly ${m.m1}`);
-  if (m.m2) parts.push(`Orbit ${m.m2}`);
-  if (m.m3) parts.push(`Descent ${m.m3}`);
-  return parts.join(" · ");
+  const d = row.details;
+  if (!d) return "";
+
+  /* Danes Rocket — score per mission */
+  if (d.missions) {
+    const parts = [];
+    if (d.missions.m1) parts.push(`Assembly ${d.missions.m1}`);
+    if (d.missions.m2) parts.push(`Orbit ${d.missions.m2}`);
+    if (d.missions.m3) parts.push(`Descent ${d.missions.m3}`);
+    return parts.join(" · ");
+  }
+
+  /* Asteroid Run — how far the run got */
+  if (d.wave || d.kills) {
+    const parts = [];
+    if (d.wave) parts.push(`Wave ${d.wave}`);
+    if (d.kills) parts.push(`${d.kills} rocks`);
+    return parts.join(" · ");
+  }
+
+  /* Orbital Puzzle — score per puzzle, summarised as how many are solved */
+  if (d.puzzles) {
+    const solved = Object.values(d.puzzles).filter((v) => v > 0).length;
+    return `${solved} of 12 puzzles solved`;
+  }
+
+  return "";
 }
 
 function rowHtml(row, i, meId) {

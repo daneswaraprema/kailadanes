@@ -59,10 +59,20 @@ comment on column public.games.max_score is
    best score the game can legitimately produce.';
 
 -- Seed the catalogue. on conflict keeps re-runs harmless.
+-- max_score is the ceiling the insert policy enforces, set a little above the
+-- best score each game can legitimately produce:
+--   danes-rocket    theoretical max 4,950 (three missions played perfectly)
+--   asteroid-run    endless, so this is a generous ceiling rather than a max
+--   orbital-puzzle  theoretical max 10,440 (twelve puzzles, first try, all
+--                   seventeen crystals)
 insert into public.games (id, title, tagline, score_label, max_score, sort_order)
 values
   ('danes-rocket', 'Danes Rocket', 'Build it, launch it, land it on Mars.',
-   'Campaign score', 6000, 1)
+   'Campaign score', 6000, 1),
+  ('asteroid-run', 'Asteroid Run', 'Fly the belt. Break the rocks. Stay alive.',
+   'High score', 500000, 2),
+  ('orbital-puzzle', 'Orbital Puzzle', 'Aim once. Let gravity do the rest.',
+   'Campaign score', 15000, 3)
 on conflict (id) do update
   set title       = excluded.title,
       tagline     = excluded.tagline,

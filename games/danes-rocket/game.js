@@ -22,47 +22,58 @@
   };
 
   /* ------------------------------------------------------------------ *
-   *  Audio — tiny WebAudio beeps, no asset files needed
+   *  Audio
+   *  The synthesiser itself lives in assets/audio.js and is shared with the
+   *  rest of the arcade. This layer is just the vocabulary Danes Rocket
+   *  uses, plus a stub so a failed script load costs the sound and nothing
+   *  else — the game still plays in silence.
    * ------------------------------------------------------------------ */
   const Audio_ = (() => {
-    let ctx = null;
-    let enabled = Store.get("dr_sound") !== "off";
+    const noop = () => {};
+    const A = window.ArcadeAudio || {
+      sfx: noop, music: noop, thruster: noop, setSfxEnabled: noop,
+      setMusicEnabled: noop, setSfxVolume: noop, setMusicVolume: noop,
+      sfxEnabled: () => false, musicEnabled: () => false,
+      sfxVolume: () => 0, musicVolume: () => 0,
+    };
 
-    function ensureCtx() {
-      if (!ctx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) ctx = new AC();
-      }
-      if (ctx && ctx.state === "suspended") ctx.resume();
-      return ctx;
-    }
-
-    function tone(freq, dur, type = "sine", gain = 0.08, delay = 0) {
-      if (!enabled) return;
-      const c = ensureCtx();
-      if (!c) return;
-      const osc = c.createOscillator();
-      const g = c.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      g.gain.value = gain;
-      osc.connect(g);
-      g.connect(c.destination);
-      const t0 = c.currentTime + delay;
-      g.gain.setValueAtTime(gain, t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.start(t0);
-      osc.stop(t0 + dur + 0.02);
-    }
+    // A rising alarm every frame would be unbearable, so warnings claim a
+    // shared cooldown and the loudest one wins the window.
+    let nextWarning = 0;
 
     return {
-      click: () => tone(520, 0.06, "square", 0.05),
-      place: () => tone(660, 0.09, "triangle", 0.07),
-      error: () => tone(140, 0.22, "sawtooth", 0.07),
-      success: () => { tone(523, 0.14, "triangle", 0.09, 0); tone(659, 0.14, "triangle", 0.09, 0.12); tone(784, 0.22, "triangle", 0.09, 0.24); },
-      fail: () => { tone(220, 0.3, "sawtooth", 0.08, 0); tone(160, 0.4, "sawtooth", 0.08, 0.18); },
-      isEnabled: () => enabled,
-      setEnabled: (v) => { enabled = v; Store.set("dr_sound", v ? "on" : "off"); },
+      click: () => A.sfx("click"),
+      grab: () => A.sfx("hover"),
+      place: () => A.sfx("place"),
+      error: () => A.sfx("error"),
+      success: () => A.sfx("success"),
+      fail: () => A.sfx("fail"),
+      ignite: () => A.sfx("ignite"),
+      thud: () => A.sfx("thud"),
+      crash: () => A.sfx("crash"),
+      ping: () => A.sfx("tick"),
+
+      warn(minGap = 1.1) {
+        const now = performance.now() / 1000;
+        if (now < nextWarning) return;
+        nextWarning = now + minGap;
+        A.sfx("alarm");
+      },
+
+      /** Engine noise, 0 = shut down. Called every frame from the flight
+       *  loops; the engine smooths the changes so this can be raw throttle. */
+      throttle: (v) => A.thruster(v),
+
+      music: (track) => A.music(track),
+
+      sfxEnabled: () => A.sfxEnabled(),
+      musicEnabled: () => A.musicEnabled(),
+      setSfxEnabled: (v) => A.setSfxEnabled(v),
+      setMusicEnabled: (v) => A.setMusicEnabled(v),
+      musicVolume: () => A.musicVolume(),
+      setMusicVolume: (v) => A.setMusicVolume(v),
+      sfxVolume: () => A.sfxVolume(),
+      setSfxVolume: (v) => A.setSfxVolume(v),
     };
   })();
 
@@ -124,10 +135,22 @@
    * ------------------------------------------------------------------ */
   let activeMission = 0; // 0 = none, used to route keyboard input
 
+  /* Each screen has its own soundtrack. Asking for a track that is already
+     playing is a no-op in the audio engine, so moving between the menu and
+     mission select does not restart the music. */
+  const SCREEN_MUSIC = {
+    "screen-start": "menu",
+    "screen-missions": "menu",
+    "screen-mission1": "assembly",
+    "screen-mission2": "flight",
+    "screen-mission3": "descent",
+  };
+
   function showScreen(id) {
     $$(".screen").forEach((s) => s.classList.toggle("active", s.id === id));
     stopMission2();
     stopMission3();
+    Audio_.music(SCREEN_MUSIC[id] || "menu");
     if (id === "screen-mission1") initMission1();
     if (id === "screen-mission2") initMission2();
     if (id === "screen-mission3") initMission3();
@@ -311,6 +334,7 @@
     m1DragEl = el;
     m1DragPart = part;
     el.classList.add("dragging");
+    Audio_.grab();
 
     const ghost = el.cloneNode(true);
     ghost.classList.remove("dragging");
@@ -415,6 +439,7 @@
     m2 = {
       altitude: 0, velocity: 0, fuel: 100, throttle: 0,
       time: 0, hasLaunched: false, ended: false,
+      ignited: false, lowFuelCalled: false,
       stars: Array.from({ length: 60 }, () => ({ x: Math.random() * 900, y: Math.random() * 420, r: Math.random() * 1.4 + 0.3 })),
     };
 
@@ -439,6 +464,7 @@
   function stopMission2() {
     if (m2Raf) cancelAnimationFrame(m2Raf);
     m2Raf = null;
+    Audio_.throttle(0);
     activeMission = activeMission === 2 ? 0 : activeMission;
   }
 
@@ -471,6 +497,20 @@
 
     if (m2.fuel > 0) m2.fuel = clamp(m2.fuel - (m2.throttle / 100) * M2.fuelBurnRate * dt, 0, 100);
 
+    /* Sound follows the flight. The engine roar tracks the throttle every
+       frame; the one-shot ignition fires the first time the player commits
+       to a burn, and the alarms mark the two ways this mission goes wrong. */
+    Audio_.throttle(m2.fuel > 0 ? m2.throttle / 100 : 0);
+    if (!m2.ignited && m2.throttle > 10) {
+      m2.ignited = true;
+      Audio_.ignite();
+    }
+    if (m2.velocity > M2.vMax) Audio_.warn();
+    if (!m2.lowFuelCalled && m2.fuel > 0 && m2.fuel < 15) {
+      m2.lowFuelCalled = true;
+      Audio_.warn(0);
+    }
+
     if (m2.altitude > 2) m2.hasLaunched = true;
     if (m2.altitude <= 0) {
       m2.altitude = 0;
@@ -486,6 +526,7 @@
       return;
     }
     if (m2.hasLaunched && m2.altitude <= 0 && m2.velocity <= 0) {
+      Audio_.crash();
       endMission2(false, "Fell Back to Earth", "Velocity dropped off before reaching orbital altitude and gravity pulled the rocket back down. Give it more throttle on the way up.");
       return;
     }
@@ -499,6 +540,7 @@
     m2.ended = true;
     if (m2Raf) cancelAnimationFrame(m2Raf);
     m2LastT = null;
+    Audio_.throttle(0);
     const score = success ? Score.mission2(m2.fuel, m2.time, M2.timeLimit) : 0;
     setTimeout(() => showResult({ success, title, body, missionNum: 2, nextUnlocksMission: nextMission, score }), 250);
   }
@@ -605,7 +647,7 @@
     const ctx = canvas.getContext("2d");
     m3 = {
       altitude: M3.startAltitude, velocity: M3.startVelocity, fuel: 100, throttle: 0,
-      time: 0, ended: false,
+      time: 0, ended: false, nextPing: 0,
       terrain: Array.from({ length: 10 }, (_, i) => 40 + Math.random() * 26),
     };
 
@@ -627,6 +669,7 @@
   function stopMission3() {
     if (m3Raf) cancelAnimationFrame(m3Raf);
     m3Raf = null;
+    Audio_.throttle(0);
     activeMission = activeMission === 3 ? 0 : activeMission;
   }
 
@@ -658,11 +701,29 @@
 
     if (m3.fuel > 0) m3.fuel = clamp(m3.fuel - (m3.throttle / 100) * M3.fuelBurnRate * dt, 0, 100);
 
+    Audio_.throttle(m3.fuel > 0 ? (m3.throttle / 100) * 0.85 : 0);
+
+    /* A radar altimeter that quickens as the ground comes up. It tells the
+       player how close they are without making them watch the gauge, which
+       is exactly the job it does on a real lander. */
+    if (m3.altitude < 400) {
+      m3.nextPing -= dt;
+      if (m3.nextPing <= 0) {
+        Audio_.ping();
+        m3.nextPing = 0.12 + (m3.altitude / 400) * 0.9;
+      }
+    }
+    // Coming in hot with the ground in sight: the one thing worth shouting about.
+    if (m3.altitude < 200 && m3.velocity > M3.safeLandingSpeed * 1.6) Audio_.warn();
+
     if (m3.altitude <= 0) {
       m3.altitude = 0;
+      Audio_.throttle(0);
       if (m3.velocity <= M3.safeLandingSpeed) {
+        Audio_.thud();
         endMission3(true, "Touchdown!", `Landed at ${fmt1(m3.velocity)} m/s \u2014 well within tolerance. Danes Rocket has reached Mars.`);
       } else {
+        Audio_.crash();
         endMission3(false, "Impact Too Hard", `Touched down at ${fmt1(m3.velocity)} m/s, faster than the ${M3.safeLandingSpeed} m/s the frame can absorb. The rocket didn't survive.`);
       }
       return;
@@ -677,6 +738,7 @@
     m3.ended = true;
     if (m3Raf) cancelAnimationFrame(m3Raf);
     m3LastT = null;
+    Audio_.throttle(0);
     const score = success ? Score.mission3(m3.fuel, m3.velocity, M3.safeLandingSpeed) : 0;
     setTimeout(() => showResult({ success, title, body, missionNum: 3, nextUnlocksMission: null, score }), 250);
   }
@@ -743,14 +805,31 @@
   $$("[data-goto]").forEach((btn) => btn.addEventListener("click", () => { Audio_.click(); showScreen(btn.dataset.goto); }));
   $$("[data-close-modal]").forEach((btn) => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
 
+  /* ------------------------------------------------------------------ *
+   *  Audio settings
+   *  Effects and music switch separately, and both preferences are stored
+   *  by the audio engine so they carry across every game in the arcade.
+   * ------------------------------------------------------------------ */
   const soundToggle = $("#toggle-sound");
-  soundToggle.setAttribute("aria-pressed", Audio_.isEnabled() ? "true" : "false");
+  soundToggle.setAttribute("aria-pressed", Audio_.sfxEnabled() ? "true" : "false");
   soundToggle.addEventListener("click", () => {
     const next = soundToggle.getAttribute("aria-pressed") !== "true";
     soundToggle.setAttribute("aria-pressed", next ? "true" : "false");
-    Audio_.setEnabled(next);
+    Audio_.setSfxEnabled(next);
     if (next) Audio_.click();
   });
+
+  const musicToggle = $("#toggle-music");
+  musicToggle.setAttribute("aria-pressed", Audio_.musicEnabled() ? "true" : "false");
+  musicToggle.addEventListener("click", () => {
+    const next = musicToggle.getAttribute("aria-pressed") !== "true";
+    musicToggle.setAttribute("aria-pressed", next ? "true" : "false");
+    Audio_.setMusicEnabled(next);
+  });
+
+  const musicVol = $("#music-volume");
+  musicVol.value = Math.round(Audio_.musicVolume() * 100);
+  musicVol.addEventListener("input", (e) => Audio_.setMusicVolume(e.target.value / 100));
 
   $("#btn-reset-progress").addEventListener("click", () => {
     Progress.reset();
@@ -759,4 +838,9 @@
   });
 
   refreshMissionCards();
+
+  /* The engine cannot legally make a sound until the player clicks something,
+     so this only registers the intent — the menu theme starts on their first
+     interaction with the page. */
+  Audio_.music("menu");
 })();

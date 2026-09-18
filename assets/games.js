@@ -31,13 +31,44 @@ export const GAMES = [
     released: true,
     art: "rocket",
   },
+  {
+    id: "asteroid-run",
+    title: "Asteroid Run",
+    tagline: "Fly the belt. Break the rocks. Stay alive.",
+    description:
+      "An endless arcade shooter. Waves of asteroids keep coming and keep " +
+      "getting faster; chain your kills to build a combo multiplier and grab " +
+      "the power-ups the rocks drop. Three hulls, no finish line.",
+    path: "games/asteroid-run/",
+    genre: "Arcade",
+    players: "1 player",
+    controls: "Arrows / WASD, or touch",
+    scoreLabel: "High score",
+    accent: "#ffb347",
+    released: true,
+    art: "asteroid",
+  },
+  {
+    id: "orbital-puzzle",
+    title: "Orbital Puzzle",
+    tagline: "Aim once. Let gravity do the rest.",
+    description:
+      "Twelve gravity slingshots. You get one probe, one launch and a single " +
+      "mid-course burn — everything else is the pull of the planets, stars " +
+      "and voids between you and the station.",
+    path: "games/orbital-puzzle/",
+    genre: "Puzzle",
+    players: "1 player",
+    controls: "Mouse or arrow keys",
+    scoreLabel: "Campaign score",
+    accent: "#5ad1ff",
+    released: true,
+    art: "orbit",
+  },
 ];
 
 /* Placeholder tiles shown alongside the real games so the shelf reads as a
    platform rather than a single-game site. Delete entries as they ship. */
-export const COMING_SOON = [
-  { title: "Asteroid Run", genre: "Arcade", art: "asteroid" },
-  { title: "Orbital Puzzle", genre: "Puzzle", art: "orbit" },
-];
+export const COMING_SOON = [];
 
 export const gameById = (id) => GAMES.find((g) => g.id === id) || null;

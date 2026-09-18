@@ -226,8 +226,16 @@
   <div class="modal">
     <h3>Setting</h3>
     <div class="modal__row">
-      <span>Sound</span>
+      <span>Sound effects</span>
       <button class="toggle" id="toggle-sound" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <span>Music</span>
+      <button class="toggle" id="toggle-music" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <label class="modal__slider-label" for="music-volume">Music volume</label>
+      <input class="modal__slider" type="range" id="music-volume" min="0" max="100" step="5" value="50">
     </div>
     <div class="modal__row">
       <span>Progress</span>
@@ -260,6 +268,9 @@
   </div>
 </div>
 
+<!-- The audio engine is a classic script so game.js can reach it directly;
+     it must load first because game.js reads the stored sound settings. -->
+<script src="../../assets/audio.js"></script>
 <script src="game.js"></script>
 <script type="module" src="arcade.js"></script>
 </body>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbital Puzzle — Danes Arcade</title>
+<meta name="description" content="Aim one probe, let gravity do the rest. Twelve free slingshot puzzles you can play in your browser — no downloads, no installs.">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- platform.css first so the game stylesheet wins every conflict; it is here
+     for the shared buttons, sign-in dialog and toasts. -->
+<link rel="stylesheet" href="../../assets/platform.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<!-- data-page="none" keeps the shell from injecting the full site header: the
+     game screens are fixed overlays, so it uses the compact bar below. -->
+<body data-page="none">
+
+<div id="starfield"></div>
+
+<!-- ============ ARCADE BAR (overlays every screen) ============ -->
+<div class="arcade-bar">
+  <a class="arcade-bar__back" href="../../index.html">
+    <span aria-hidden="true">&#8592;</span> Arcade
+  </a>
+  <a class="arcade-bar__link" href="../../leaderboards.html?game=orbital-puzzle">Leaderboard</a>
+  <div class="arcade-bar__account" id="site-account"></div>
+</div>
+
+<!-- ============ START SCREEN ============ -->
+<section id="screen-start" class="screen active">
+  <div class="space-scene" aria-hidden="true">
+    <div class="orbit-ring orbit-ring--outer"><span class="orbit-dot"></span></div>
+    <div class="orbit-ring orbit-ring--inner"><span class="orbit-dot orbit-dot--small"></span></div>
+    <div class="core-planet"></div>
+  </div>
+
+  <div class="title-block">
+    <h1 class="game-title">
+      <span class="game-title__top">Orbital</span>
+      <span class="game-title__bottom">Puzzle</span>
+    </h1>
+    <p class="game-tagline">Aim once. Let gravity do the rest.</p>
+  </div>
+
+  <nav class="menu-panel" aria-label="Main menu">
+    <button class="menu-btn" id="btn-start" type="button">Play</button>
+    <button class="menu-btn" id="btn-howto" type="button">How to Play</button>
+    <button class="menu-btn" id="btn-settings" type="button">Setting</button>
+    <a class="menu-btn" href="../../leaderboards.html?game=orbital-puzzle">Leaderboard</a>
+    <button class="menu-btn" id="btn-quit" type="button">Quit</button>
+  </nav>
+
+  <p class="start-best">Campaign score: <b id="start-total">0</b></p>
+</section>
+
+<!-- ============ LEVEL SELECT ============ -->
+<section id="screen-levels" class="screen screen--scroll">
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-start" type="button" aria-label="Back to menu">&#8592;</button>
+    <h2>Select a Puzzle</h2>
+    <span class="subheader__stat">Campaign: <b id="campaign-total">0</b></span>
+  </header>
+
+  <!-- cards injected by game.js from the LEVELS table -->
+  <div class="level-grid" id="level-grid"></div>
+
+  <p class="levels-note">
+    Each puzzle keeps your best score, and the campaign total is the sum of all
+    twelve &mdash; so solving a puzzle in fewer attempts is always worth going back for.
+  </p>
+</section>
+
+<!-- ============ PLAY SCREEN ============ -->
+<section id="screen-play" class="screen">
+  <header class="subheader">
+    <button class="icon-btn" data-goto="screen-levels" type="button" aria-label="Back to puzzles">&#8592;</button>
+    <h2 id="play-title">01 &mdash; First Light</h2>
+    <span class="subheader__stat" id="play-attempts">Attempt 1</span>
+  </header>
+
+  <div class="play-wrap">
+    <canvas id="canvas" width="900" height="620" aria-label="Orbital Puzzle play field"></canvas>
+
+    <div class="hud" aria-live="off">
+      <div class="hud__cell">
+        <span class="hud__label">Angle</span>
+        <span class="hud__value" id="hud-angle">0&deg;</span>
+      </div>
+      <div class="hud__cell">
+        <span class="hud__label">Power</span>
+        <span class="hud__value" id="hud-power">60%</span>
+      </div>
+      <div class="hud__cell">
+        <span class="hud__label">Crystals</span>
+        <span class="hud__value" id="hud-crystals">0 / 0</span>
+      </div>
+      <div class="hud__cell hud__cell--burn">
+        <span class="hud__label">Burn</span>
+        <span class="hud__value" id="hud-burn">Ready</span>
+      </div>
+      <button class="hud__btn" id="btn-retry" type="button">Reset</button>
+    </div>
+
+    <div class="flash" id="flash" aria-live="polite"></div>
+  </div>
+
+  <p class="play-hint" id="play-hint"></p>
+  <p class="play-hint play-hint--keys">
+    Drag from the pad to aim &middot; <kbd>&#8592;</kbd><kbd>&#8594;</kbd> angle &middot;
+    <kbd>&#8593;</kbd><kbd>&#8595;</kbd> power &middot; <kbd>Space</kbd> launch, then again to burn &middot;
+    <kbd>R</kbd> reset
+  </p>
+</section>
+
+<!-- ============ MODALS ============ -->
+<div class="modal-overlay" id="modal-howto">
+  <div class="modal modal--wide">
+    <h3>How to Play</h3>
+    <ul class="howto">
+      <li><b>Aim and launch.</b> Drag from the launch pad in the direction you want to fly &mdash; further out is more power &mdash; then let go. Arrow keys and Space work too.</li>
+      <li><b>Gravity does the steering.</b> Every planet, star and void pulls on the probe. The dotted line previews only the first couple of seconds, so the rest of the arc is yours to predict.</li>
+      <li><b>One burn per attempt.</b> While flying, press Space or tap the field once to fire a boost along your current heading. It is often the difference between a near miss and a docking.</li>
+      <li><b>Nothing is solid but the station.</b> Touching a planet, a star, a void or a barrier ends the attempt, and so does drifting off the map.</li>
+      <li><b>Collect the crystals</b> on the way in. They only count if you reach the station in the same attempt &mdash; and fewer attempts always scores higher.</li>
+    </ul>
+    <button class="menu-btn menu-btn--small" data-close-modal="modal-howto" type="button">Got it</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <h3>Setting</h3>
+    <div class="modal__row">
+      <span>Sound effects</span>
+      <button class="toggle" id="toggle-sound" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <span>Music</span>
+      <button class="toggle" id="toggle-music" type="button" aria-pressed="true"><span class="toggle__knob"></span></button>
+    </div>
+    <div class="modal__row">
+      <label class="modal__slider-label" for="music-volume">Music volume</label>
+      <input class="modal__slider" type="range" id="music-volume" min="0" max="100" step="5" value="50">
+    </div>
+    <div class="modal__row">
+      <span>Progress</span>
+      <button class="text-btn" id="btn-reset-progress" type="button">Reset puzzles</button>
+    </div>
+    <p class="modal__note">Orbital Puzzle &mdash; twelve gravity slingshots. Built with HTML, CSS &amp; JavaScript.</p>
+    <button class="menu-btn menu-btn--small" data-close-modal="modal-settings" type="button">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-quit">
+  <div class="modal">
+    <h3>Leave the array?</h3>
+    <p>Your progress is saved. Head back to the arcade and pick another game, or stay and solve one more.</p>
+    <div class="modal__actions">
+      <a class="menu-btn menu-btn--small" href="../../index.html">Back to Arcade</a>
+      <button class="menu-btn menu-btn--small menu-btn--ghost" data-close-modal="modal-quit" type="button">Stay</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-result">
+  <div class="modal modal--result">
+    <div class="modal__badge" id="result-badge">&#9733;</div>
+    <h3 id="result-title">Docked</h3>
+    <p id="result-body"></p>
+    <div class="result-stars" id="result-stars" aria-hidden="true"></div>
+    <div class="result-score" id="result-score"></div>
+    <p class="result-sync" id="result-sync"></p>
+    <div class="modal__actions" id="result-actions"></div>
+  </div>
+</div>
+
+<!-- The audio engine is a classic script so game.js can reach it directly;
+     it must load first because game.js reads the stored sound settings. -->
+<script src="../../assets/audio.js"></script>
+<script src="game.js"></script>
+<script type="module" src="arcade.js"></script>
+</body>
+</html>
